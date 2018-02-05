@@ -960,6 +960,7 @@ public class BigQueryIO {
   public static <T> Write<T> write() {
     return new AutoValue_BigQueryIO_Write.Builder<T>()
         .setValidate(true)
+        .setIgnoreUnknownValues(false)
         .setBigQueryServices(new BigQueryServicesImpl())
         .setCreateDisposition(Write.CreateDisposition.CREATE_IF_NEEDED)
         .setWriteDisposition(Write.WriteDisposition.WRITE_EMPTY)
@@ -1031,6 +1032,7 @@ public class BigQueryIO {
     abstract BigQueryServices getBigQueryServices();
     @Nullable abstract Integer getMaxFilesPerBundle();
     @Nullable abstract Long getMaxFileSize();
+    abstract boolean getIgnoreUnknownValues();
 
     abstract int getNumFileShards();
 
@@ -1062,6 +1064,7 @@ public class BigQueryIO {
       abstract Builder<T> setBigQueryServices(BigQueryServices bigQueryServices);
       abstract Builder<T> setMaxFilesPerBundle(Integer maxFilesPerBundle);
       abstract Builder<T> setMaxFileSize(Long maxFileSize);
+      abstract Builder<T> setIgnoreUnknownValues(boolean ignore);
 
       abstract Builder<T> setNumFileShards(int numFileShards);
 
@@ -1347,6 +1350,11 @@ public class BigQueryIO {
     }
 
     @VisibleForTesting
+    public Write<T> withIgnoreUnknownValues(boolean ignore) {
+      return toBuilder().setIgnoreUnknownValues(ignore).build();
+    }
+
+    @VisibleForTesting
     Write<T> withTestServices(BigQueryServices testServices) {
       checkArgument(testServices != null, "testServices can not be null");
       return toBuilder().setBigQueryServices(testServices).build();
@@ -1365,6 +1373,7 @@ public class BigQueryIO {
           maxFileSize > 0, "maxFileSize must be > 0, but was: %s", maxFileSize);
       return toBuilder().setMaxFileSize(maxFileSize).build();
     }
+
 
     @Override
     public void validate(PipelineOptions pipelineOptions) {
@@ -1524,6 +1533,7 @@ public class BigQueryIO {
 
         StreamingInserts<DestinationT> streamingInserts =
             new StreamingInserts<>(getCreateDisposition(), dynamicDestinations)
+                .withIgnoreUnknownValues(getIgnoreUnknownValues())
                 .withInsertRetryPolicy(retryPolicy)
                 .withTestServices((getBigQueryServices()));
         return rowsWithDestination.apply(streamingInserts);

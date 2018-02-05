@@ -211,14 +211,16 @@ class FakeDatasetService implements DatasetService, Serializable {
       windowedRows.add(ValueInSingleWindow.of(row, GlobalWindow.TIMESTAMP_MAX_VALUE,
           GlobalWindow.INSTANCE, PaneInfo.ON_TIME_AND_ONLY_FIRING));
     }
-    return insertAll(ref, windowedRows, insertIdList, InsertRetryPolicy.alwaysRetry(), null);
+    return insertAll(ref, windowedRows, insertIdList, InsertRetryPolicy.alwaysRetry(), null, false);
   }
 
   @Override
   public long insertAll(
-      TableReference ref, List<ValueInSingleWindow<TableRow>> rowList,
-      @Nullable List<String> insertIdList,
-      InsertRetryPolicy retryPolicy, List<ValueInSingleWindow<TableRow>> failedInserts)
+          TableReference ref, List<ValueInSingleWindow<TableRow>> rowList,
+          @Nullable List<String> insertIdList,
+          InsertRetryPolicy retryPolicy,
+          List<ValueInSingleWindow<TableRow>> failedInserts,
+          boolean ignoreUnknownValues)
       throws IOException, InterruptedException {
     Map<TableRow, List<TableDataInsertAllResponse.InsertErrors>> insertErrors = getInsertErrors();
     synchronized (tables) {

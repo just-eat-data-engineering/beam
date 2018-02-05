@@ -215,7 +215,7 @@ public class BigQueryUtilTest {
     long totalBytes = 0;
     try {
       totalBytes = datasetService.insertAll(ref, rows, ids, InsertRetryPolicy.alwaysRetry(),
-          null);
+          null, false);
     } finally {
       verifyInsertAll(5);
       // Each of the 25 rows is 23 bytes: "{f=[{v=foo}, {v=1234}]}"
