@@ -87,7 +87,7 @@ class BigQueryServicesImpl implements BigQueryServices {
   // The maximum number of retries to execute a BigQuery RPC.
   private static final int MAX_RPC_RETRIES = 9;
 
-  // The initial backoff for executing a BigQuery RPC.
+  // The inital backoff for executing a BigQuery RPC.
   private static final Duration INITIAL_RPC_BACKOFF = Duration.standardSeconds(1);
 
   // The initial backoff for polling the status of a BigQuery job.
@@ -661,7 +661,7 @@ class BigQueryServicesImpl implements BigQueryServices {
     long insertAll(TableReference ref, List<ValueInSingleWindow<TableRow>> rowList,
                    @Nullable List<String> insertIdList,
                    BackOff backoff, final Sleeper sleeper, InsertRetryPolicy retryPolicy,
-                   List<ValueInSingleWindow<TableRow>> failedInserts)
+                   List<ValueInSingleWindow<TableRow>> failedInserts, boolean ignoreUnknownValues)
         throws IOException, InterruptedException {
       checkNotNull(ref, "ref");
       if (executor == null) {
@@ -703,6 +703,7 @@ class BigQueryServicesImpl implements BigQueryServices {
           if (dataSize >= UPLOAD_BATCH_SIZE_BYTES || rows.size() >= maxRowsPerBatch
               || i == rowsToPublish.size() - 1) {
             TableDataInsertAllRequest content = new TableDataInsertAllRequest();
+            content.setIgnoreUnknownValues(ignoreUnknownValues);
             content.setRows(rows);
 
             final Bigquery.Tabledata.InsertAll insert = client.tabledata()
@@ -801,15 +802,16 @@ class BigQueryServicesImpl implements BigQueryServices {
 
     @Override
     public long insertAll(
-        TableReference ref, List<ValueInSingleWindow<TableRow>> rowList,
-        @Nullable List<String> insertIdList,
-        InsertRetryPolicy retryPolicy, List<ValueInSingleWindow<TableRow>> failedInserts)
+            TableReference ref, List<ValueInSingleWindow<TableRow>> rowList,
+            @Nullable List<String> insertIdList,
+            InsertRetryPolicy retryPolicy, List<ValueInSingleWindow<TableRow>> failedInserts,
+            boolean ignoreUnknownValues)
         throws IOException, InterruptedException {
       return insertAll(
           ref, rowList, insertIdList,
           BackOffAdapter.toGcpBackOff(
               INSERT_BACKOFF_FACTORY.backoff()),
-          Sleeper.DEFAULT, retryPolicy, failedInserts);
+          Sleeper.DEFAULT, retryPolicy, failedInserts, ignoreUnknownValues);
     }
 
 
