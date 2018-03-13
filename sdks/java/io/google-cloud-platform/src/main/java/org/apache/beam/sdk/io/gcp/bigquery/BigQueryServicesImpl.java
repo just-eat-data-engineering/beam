@@ -19,6 +19,7 @@ package org.apache.beam.sdk.io.gcp.bigquery;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.api.client.googleapis.json.GoogleJsonError;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.client.googleapis.services.AbstractGoogleClientRequest;
 import com.google.api.client.http.HttpRequestInitializer;
@@ -27,6 +28,7 @@ import com.google.api.client.util.BackOffUtils;
 import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
 import com.google.api.services.bigquery.Bigquery;
+import com.google.api.services.bigquery.model.ErrorProto;
 import com.google.api.services.bigquery.model.Dataset;
 import com.google.api.services.bigquery.model.DatasetReference;
 import com.google.api.services.bigquery.model.Job;
@@ -709,6 +711,9 @@ class BigQueryServicesImpl implements BigQueryServices {
                 .insertAll(ref.getProjectId(), ref.getDatasetId(), ref.getTableId(),
                     content);
 
+            final int currentStride = strideIndex;
+            final int batchSize = rows.size();
+
             futures.add(
                 executor.submit(
                     () -> {
@@ -718,15 +723,41 @@ class BigQueryServicesImpl implements BigQueryServices {
                       while (true) {
                         try {
                           return insert.execute().getInsertErrors();
-                        } catch (IOException e) {
+                        }
+                        catch (GoogleJsonResponseException e) {
+                          GoogleJsonError requestErrors = e.getDetails();
+
                           if (new ApiErrorExtractor().rateLimited(e)) {
                             LOG.info("BigQuery insertAll exceeded rate limit, retrying");
                             try {
                               sleeper.sleep(backoff1.nextBackOffMillis());
                             } catch (InterruptedException interrupted) {
                               throw new IOException(
-                                  "Interrupted while waiting before retrying insertAll");
+                                      "Interrupted while waiting before retrying insertAll");
                             }
+                          } else if (requestErrors.getCode() / 100 == 4) {
+                            List<TableDataInsertAllResponse.InsertErrors> dummyInsertErrors = new ArrayList<>();
+
+                            for (int j = 0; j < batchSize; j++) {
+                              TableDataInsertAllResponse.InsertErrors insertError =
+                                      new TableDataInsertAllResponse.InsertErrors();
+
+                              ArrayList<ErrorProto> errorProtos = new ArrayList<>();
+
+                              for (GoogleJsonError.ErrorInfo errorInfo : requestErrors.getErrors()) {
+                                ErrorProto errorProto = new ErrorProto();
+                                errorProto.setReason(errorInfo.getReason());
+                                errorProto.setMessage(errorInfo.getMessage());
+                                errorProto.setLocation(errorInfo.getLocation());
+                                errorProtos.add(errorProto);
+                              }
+
+                              insertError.setErrors(errorProtos);
+                              insertError.setIndex((long) (currentStride + j));
+                              dummyInsertErrors.add(insertError);
+                            }
+
+                            return dummyInsertErrors;
                           } else {
                             throw e;
                           }
